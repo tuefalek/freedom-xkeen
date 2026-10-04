@@ -9,7 +9,7 @@
 # Повторный запуск обновляет сами файлы проекта; значения не спрашивает,
 # пока не передан -reconf.
 
-REPO_RAW=${REPO_RAW:-https://raw.githubusercontent.com/OWNER/REPO/main}
+REPO_RAW=${REPO_RAW:-https://raw.githubusercontent.com/tuefalek/freedom-xkeen/main}
 DIR=${DIR:-/opt/etc/mihomo}
 export DIR
 
