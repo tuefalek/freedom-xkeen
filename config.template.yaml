@@ -1,0 +1,197 @@
+log-level: silent
+allow-lan: true
+redir-port: 1182
+tproxy-port: 1181
+mixed-port: 1080
+find-process-mode: off
+unified-delay: true
+external-controller: 0.0.0.0:9090
+#@@SECRET@@
+external-ui: zashboard
+external-ui-url: https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip
+profile: { store-selected: true }
+
+sniffer:
+  enable: true
+  sniff:
+    HTTP: { ports: [80, 8080] }
+    TLS: { ports: [443, 8443] }
+  skip-dst-address: [rule-set:telegram@ipcidr]
+
+listeners:
+  - name: socks-us1
+    type: socks
+    port: 1081
+    listen: 0.0.0.0
+    udp: true
+  - name: socks-direct
+    type: socks
+    port: 1082
+    listen: 0.0.0.0
+    udp: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+  enhanced-mode: redir-host
+  fallback:
+    - 8.8.8.8
+    - 1.1.1.1
+    - tcp://8.8.4.4
+  fallback-filter:
+    geoip: true
+    geoip-code: RU
+    ipcidr:
+      - 240.0.0.0/4
+  nameserver-policy:
+    'geosite:telegram': [https://dns.google/dns-query, 8.8.8.8]
+    'geosite:category-gov-ru': [77.88.8.8, 8.8.8.8]
+    '+.nalog.ru': 77.88.8.8
+    '+.sberbank.ru': 77.88.8.8
+
+anchors:
+  a1: &domain { type: http, format: mrs, behavior: domain, interval: 86400 }
+  a2: &ipcidr { type: http, format: mrs, behavior: ipcidr, interval: 86400 }
+  a3: &classical { type: http, format: text, behavior: classical, interval: 86400 }
+  a4: &inline { type: inline, behavior: classical }
+
+proxy-providers:
+  proxy-sub:
+    type: http
+    #@@PROXIES_URL@@
+    path: ./proxy-providers/proxy-sub.yml
+    interval: 3600
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 300
+      timeout: 2000
+      lazy: false
+      expected-status: 204
+    override:
+      udp: true
+      tfo: true
+
+proxy-groups:
+  # --- Балансировщики (генерируются из серверного конфига) ---
+  #@@BALANCERS@@
+
+  # --- Авто-режим: fallback 🟢 -> ❤️ -> 💛 (порядок = приоритет) ---
+  - name: "Авто"
+    type: fallback
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    proxies:
+      - "🇪🇺 🟢 ↪️ Auto"
+      - "🇪🇺 ❤️ ↪️ Auto"
+      - "🇪🇺 💛 ↪️ Auto"
+
+  # --- Основные группы ---
+  - name: PROXY
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Reject.png
+    proxies:
+      - "Авто"
+      #@@NAMES@@
+
+  - name: RU-Crap
+    type: select
+    icon: https://images.icon-icons.com/1603/PNG/512/poop-shit-poo-cream-ice-2_108504.png
+    proxies:
+      - DIRECT
+      - PROXY
+      - REJECT
+
+  - name: YouTube
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/YouTube.png
+    proxies:
+      - PROXY
+      #@@NAMES@@
+      - DIRECT
+
+  - name: Discord
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Discord.png
+    proxies:
+      - PROXY
+      #@@NAMES@@
+      - DIRECT
+
+  - name: Steam
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Steam.png
+    proxies:
+      - DIRECT
+      - PROXY
+      #@@NAMES@@
+
+  - name: Twitch
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Twitch.png
+    proxies:
+      - PROXY
+      #@@NAMES@@
+      - DIRECT
+
+  - name: Telegram
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Telegram.png
+    proxies:
+      - PROXY
+      #@@NAMES@@
+      - DIRECT
+
+  - name: User List
+    type: select
+    icon: https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png
+    proxies:
+      - DIRECT
+      - PROXY
+
+  - name: socks-1081-out
+    type: select
+    proxies:
+      - PROXY
+      #@@NAMES@@
+
+rule-providers:
+  adlist@domain: { <<: *domain, url: https://github.com/zxc-rv/ad-filter/releases/latest/download/adlist.mrs }
+  category-ru@domain: { <<: *domain, url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ru.mrs }
+  category-ru@ipcidr: { <<: *ipcidr, url: https://github.com/zxc-rv/zkeenip-rulesets/releases/latest/download/ru@ipcidr.mrs }
+  category-ip-geo-detect@domain: { <<: *domain, url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ip-geo-detect.mrs }
+  steam@domain: { <<: *domain, url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/steam.mrs }
+  telegram@domain: { <<: *domain, url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.mrs }
+  telegram@ipcidr: { <<: *ipcidr, url: https://github.com/zxc-rv/zkeenip-rulesets/releases/latest/download/telegram@ipcidr.mrs }
+  twitch@domain: { <<: *domain, url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/twitch.mrs }
+  youtube@domain: { <<: *domain, url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/youtube.mrs }
+  quic@inline: { <<: *inline, payload: ['AND,((DST-PORT,443),(NETWORK,UDP))'] }
+  ssa-proxy@domain: { <<: *domain, url: https://ssa.bearhub.ru:8000/proxy-domain.yaml }
+  ssa-proxy@ipcidr: { <<: *ipcidr, url: https://ssa.bearhub.ru:8000/proxy-ip.yaml }
+  ssa-direct@domain: { <<: *domain, url: https://ssa.bearhub.ru:8000/direct-domain.yaml }
+  ssa-direct@ipcidr: { <<: *ipcidr, url: https://ssa.bearhub.ru:8000/direct-ip.yaml }
+  user@classical:
+    type: inline
+    behavior: classical
+    payload:
+      - DOMAIN-SUFFIX,2ip.io
+
+rules:
+  - RULE-SET,adlist@domain,REJECT
+  - RULE-SET,quic@inline,REJECT-DROP
+  - IN-PORT,1081,socks-1081-out
+  - IN-PORT,1082,DIRECT
+  - RULE-SET,ssa-direct@ipcidr,DIRECT
+  - RULE-SET,ssa-direct@domain,DIRECT
+  - GEOIP,private,DIRECT,no-resolve
+  - GEOSITE,private,DIRECT
+  - RULE-SET,category-ip-geo-detect@domain,DIRECT
+  - OR,((RULE-SET,category-ru@domain),(RULE-SET,category-ru@ipcidr)),DIRECT
+  - AND,((DST-PORT,443),(NETWORK,UDP)),REJECT
+  - RULE-SET,user@classical,User List
+  - RULE-SET,steam@domain,Steam
+  - RULE-SET,youtube@domain,YouTube
+  - RULE-SET,twitch@domain,Twitch
+  - OR,((RULE-SET,telegram@domain),(RULE-SET,telegram@ipcidr)),Telegram
+  - MATCH,PROXY
